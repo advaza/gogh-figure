@@ -47,12 +47,12 @@ class Network(object):
 	LOSS_NET_VERSION = 0.1
 
 	MODEL_PATH = REPO_DIR + 'data/model/'
-	LOSS_NET_MODEL_FILE_NAME = "vgg16_loss_net.npz"
+	LOSS_NET_MODEL_FILE_NAME = "vgg16.pkl"
 	LOSS_NET_MODEL_SIZE = 58863490
 	LOSS_NET_DOWNLOAD_LINK = "TODO" + str(LOSS_NET_VERSION) + "TODO" + LOSS_NET_MODEL_FILE_NAME
 	LOSS_NET_MODEL_FILE_PATH = MODEL_PATH + LOSS_NET_MODEL_FILE_NAME
 
-	def __init__(self, input_var=None, num_styles=None, shape=(None, 3, 256, 256), net_type=1, **kwargs):
+	def __init__(self, input_var=None, num_styles=None, n_channels_1=64, n_channels_2=128, shape=(None, 3, 256, 256), net_type=1, gray=False, **kwargs):
 		"""
 		net_type: 0 (fast neural style- fns) or 1 (conditional instance norm- cin)
 		"""
@@ -65,15 +65,17 @@ class Network(object):
 		elif len(shape) == 3:
 			shape=(None, shape[0], shape[1], shape[2])
 		self.shape = shape
-
+		
 		self.num_styles = num_styles
+		self.n_channels_1 = n_channels_1
+		self.n_channels_2 = n_channels_2
 
 		self.network['loss_net'] = {}
 		self.setup_loss_net()
 		self.load_loss_net_weights()
 
 		self.network['transform_net'] = {}
-		self.setup_transform_net(input_var)
+		self.setup_transform_net(input_var, gray=gray)
 
 
 	def setup_loss_net(self):
@@ -109,13 +111,13 @@ class Network(object):
 	def load_loss_net_weights(self):
 		download_if_not_exists(self.LOSS_NET_MODEL_FILE_PATH, self.LOSS_NET_DOWNLOAD_LINK, \
 			"Downloading the Loss Network's weights", self.LOSS_NET_MODEL_SIZE)
-		load_params(self.network['loss_net']['conv5_3'], self.LOSS_NET_MODEL_FILE_PATH)
+		load_params(self.network['loss_net']['conv5_3'], self.LOSS_NET_MODEL_FILE_PATH, vgg=True)
 
-	def setup_transform_net(self, input_var=None):
+	def setup_transform_net(self, input_var=None, gray=False):
 		transform_net = InputLayer(shape=self.shape, input_var=input_var)
 		transform_net = style_conv_block(transform_net, self.num_styles, 32, 9, 1)
-		transform_net = style_conv_block(transform_net, self.num_styles, 64, 9, 2)
-		transform_net = style_conv_block(transform_net, self.num_styles, 128, 9, 2)
+		transform_net = style_conv_block(transform_net, self.num_styles, self.n_channels_1, 9, 2)
+		transform_net = style_conv_block(transform_net, self.num_styles, self.n_channels_2, 9, 2)
 		for _ in range(5):
 			transform_net = residual_block(transform_net, self.num_styles)
 		transform_net = nn_upsample(transform_net, self.num_styles)
@@ -125,8 +127,11 @@ class Network(object):
 			transform_net = style_conv_block(transform_net, self.num_styles, 3, 9, 1, tanh)
 			transform_net = ExpressionLayer(transform_net, lambda X: 150.*X, output_shape=None)
 		elif self.net_type == 1:
-			transform_net = style_conv_block(transform_net, self.num_styles, 3, 9, 1, sigmoid)
-
+			if gray: # convert to grayscal by setting output dimension to 1 and repeat along the rgb output channels
+				transform_net = style_conv_block(transform_net, self.num_styles, 1, 9, 1, sigmoid)
+				transform_net = T.repeat(transform_net, 3, axis=1)			
+			else:
+				transform_net = style_conv_block(transform_net, self.num_styles, 3, 9, 1, sigmoid)
 		self.network['transform_net'] = transform_net
 
 	def feature_loss(self, out_layer, target_layer):

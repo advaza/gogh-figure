@@ -49,7 +49,13 @@ def parse_args():
 						help="the file to be used as the style image, or the folder containing all the style images")
 	parser.add_argument('-a', '--suffix', type=str, default='jc_s5_ve-6_i_candy',
 						help="the suffix to be added to the folders used to store debug images and trained model params")
-
+	
+	parser.add_argument('-c1', '--channels1', type=int, default=64,
+                                                help="the suffix to be added to the folders used to store debug images and trained model params")
+	parser.add_argument('-c2', '--channels2', type=int, default=128,
+                                                help="the suffix to be added to the folders used to store debug images and trained model params")	
+	parser.add_argument('-g', '--gray', action='store_true',
+                                                help="force output to grayscal")
 	args = parser.parse_args()
 
 	# Needed because YAML fails to parse 4e-4 : http://stackoverflow.com/a/30462009
@@ -80,11 +86,10 @@ def train(args):
 
 	print('Loading Data...')
 	data = CocoData(train_batchsize=4)
-	style_im = get_images(STYLE_IMAGE_LOCATION, (256, 256), maintain_aspect=True)
-
-	print('Loading Networks...')
+	style_im = get_images(STYLE_IMAGE_LOCATION, (256, 256), maintain_aspect=True, center=False)
+	('Loading Networks...')
 	if NET_TYPE == 1:
-		net = Network(data.vgg_to_range(image_var), len(style_im))
+		net = Network(data.vgg_to_range(image_var), len(style_im), args.channels1, args.channels2, gray=args.gray)
 	elif NET_TYPE == 0:
 		net = Network(image_var, len(style_im), net_type=0)
 
@@ -150,7 +155,11 @@ def train(args):
 	# 			save_ims(REPO_DIR + 'data/debug/im_' + FOLDER_SUFFIX, pastiche_transform_fn(content_ims, [i]*data.valid_batchsize), 'e0_s'+str(i)+'_im')
 	# 		elif NET_TYPE == 0:
 	# 			save_ims(REPO_DIR + 'data/debug/im_' + FOLDER_SUFFIX, data.deprocess_vgg(pastiche_transform_fn(content_ims, [i]*data.valid_batchsize)), 'e0_s'+str(i)+'_im')
-
+	file_name = REPO_DIR + 'data/debug/im_' + FOLDER_SUFFIX + '/val_image.jpg'
+    	first_val_set = data.get_first_valid_batch()
+	#imsave(file_name, first_val_set[2])
+	print('shape of first_val_set[2]:', first_val_set[2].shape)
+	imsave(file_name, first_val_set[2].transpose(1, 2, 0))
 	print('Commencing Training...')
 	# For each epoch
 	for epoch in range(NUM_EPOCHS):
@@ -161,6 +170,7 @@ def train(args):
 		valid_batch_num = 0
 		total_batch_err = content_loss_err= style_loss_err= total_variation_loss_err = 0
 		start_time = time.time()
+		batch_100_time = time.time()
 
 		for content_ims in data.get_train_batch():
 			batch_style_num = np.random.randint(0, len(style_im))
@@ -171,7 +181,10 @@ def train(args):
 			style_loss_err += minib_style_loss_err
 			total_variation_loss_err += minib_total_variation_loss_err
 			train_batch_num += 1
-
+			
+			if DEBUG and train_batch_num%200 == 0:
+				print("Time per %d training steps is %.2f" % (train_batch_num, time.time()-batch_100_time))
+				batch_100_time = time.time() 
 			if DEBUG and train_batch_num%400 == 0:
 				print("Batch " + str(train_batch_num) + ":\t{:.6f}\t{:.6f}\t{:.6f}\t{:.6f}\t{:.6f}".format(train_err / train_batch_num, total_batch_err/400, content_loss_err/400, style_loss_err/400, total_variation_loss_err/400))
 				total_batch_err= content_loss_err= style_loss_err= total_variation_loss_err = 0

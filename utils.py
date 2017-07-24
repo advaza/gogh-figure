@@ -1,4 +1,5 @@
 import os
+import pickle
 from tqdm import tqdm
 import requests
 import numpy as np
@@ -40,11 +41,18 @@ def download(file_path, download_link, total_size):
 		for data in tqdm(response.iter_content(), total=total_size):
 			handle.write(data)
 
-def load_params(network, model_file):
+def load_params(network, model_file, vgg=False):
 	assert path_exists(model_file)
-	with np.load(model_file) as f:
-		param_values = [f['arr_%d' % i] for i in range(len(f.files))]
-	lasagne.layers.set_all_param_values(network, param_values)
+	if vgg:
+		with open(model_file, 'rb') as f:
+        		params = pickle.load(f)
+		param_values = params['param values']
+		lasagne.layers.set_all_param_values(network, param_values[:26])
+	else:
+		with np.load(model_file) as f:
+			param_values = [f['arr_%d' % i] for i in range(len(f.files))]
+		lasagne.layers.set_all_param_values(network, param_values)
+
 
 def save_params(file_name, network):
 	np.savez(file_name, *lasagne.layers.get_all_param_values(network))
@@ -158,7 +166,7 @@ def save_im(file_name, im):
 	"""
 	assert len(im.shape) == 4 or len(im.shape) == 3
 	if len(im.shape) == 4:
-		imsave(file_name, im[0].transpose(1, 2, 0))
+		imsave(file_name, im[2].transpose(1, 2, 0))
 	else:
 		imsave(file_name, im.transpose(1, 2, 0))
 
