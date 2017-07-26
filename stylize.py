@@ -20,7 +20,7 @@ from utils import *
 from model import *
 
 #from StyleTransfer.evaluate import 
-from StyleTransfer.utils import *
+from StyleTransfer.utils import image_list, pre_process, post_process, save_images  
 
 def parse_args():
 

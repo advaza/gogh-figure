@@ -178,8 +178,9 @@ def instance_norm(layer, **kwargs):
 
 # TODO: Add normalization
 def style_conv_block(conv_in, num_styles, num_filters, filter_size, stride, nonlinearity=rectify, normalization=instance_norm):
-	sc_network = ReflectLayer(conv_in, filter_size//2)
-	sc_network = normalization(ConvLayer(sc_network, num_filters, filter_size, stride, nonlinearity=nonlinearity, W=Normal()), num_styles=num_styles)
+	#sc_network = ReflectLayer(conv_in, filter_size//2)
+	sc_network = conv_in
+	sc_network = normalization(ConvLayer(sc_network, num_filters, filter_size, stride, nonlinearity=nonlinearity, W=Normal(), pad='same'), num_styles=num_styles)
 	return sc_network
 
 def residual_block(resnet_in, num_styles=None, num_filters=None, filter_size=3, stride=1):
